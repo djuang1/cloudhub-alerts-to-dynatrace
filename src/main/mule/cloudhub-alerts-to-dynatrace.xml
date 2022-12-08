@@ -34,8 +34,11 @@ http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/cu
 			host="anypoint.mulesoft.com" port="443" />
 	</http:request-config>
 	<configuration-properties doc:name="Configuration properties" doc:id="13dcfd1a-848e-4b18-98c3-6d453e7ced2c" file="mule-properties.yaml" />
+	<flow name="cloudhub-alerts-to-dynatraceFlow1" doc:id="cf7fa0f0-5d71-4aab-85ae-5634a88641c1" >
+		<http:listener doc:name="Listener" doc:id="39925097-6659-4c60-98eb-e9ea1b1f0d60" config-ref="HTTP_Listener_config" path="/alerts" />
+		<flow-ref doc:name="Flow Reference" doc:id="7d85ab04-0511-4ba2-8cb4-17221afae46b" name="cloudhub-alerts-to-dynatraceFlow"/>
+	</flow>
 	<flow name="cloudhub-alerts-to-dynatraceFlow" doc:id="bcebf41c-27cf-4c8b-97ed-4ac616a6234e" >
-		<http:listener doc:name="Listener" doc:id="39925097-6659-4c60-98eb-e9ea1b1f0d60" config-ref="HTTP_Listener_config" path="/alerts"/>
 		<ee:cache doc:name="Cache" doc:id="178232d6-ce0a-437b-9a69-d8a6cb352d31" cachingStrategy-ref="Caching_Strategy_Access_Token">
 			<http:request method="POST" doc:name="Request" doc:id="942b9c70-baca-452d-8ada-851996c32288" config-ref="HTTP_Anypoint_Request_configuration" path="/accounts/login">
 				<http:body ><![CDATA[#[%dw 2.0
