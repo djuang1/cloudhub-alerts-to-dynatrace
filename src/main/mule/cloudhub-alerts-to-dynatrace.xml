@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<http:listener-config name="HTTP_Listener_config"
+		doc:name="HTTP Listener config"
+		doc:id="30699650-3fa1-4b37-a1df-cc8eb2fb0770">
+		<http:listener-connection host="0.0.0.0"
+			port="8081" />
+	</http:listener-config>
+
+	<ee:object-store-caching-strategy
+		name="Caching_Strategy_Access_Token" doc:name="Caching Strategy"
+		doc:id="112189e1-e3b4-47a0-8684-77b138668b5f"
+		keyGenerationExpression="access_token" objectStore="accessToken" />
+
+	<os:object-store name="accessToken"
+		doc:name="Object store" doc:id="ecda4438-12b1-4276-bedb-d0d18108a9ee"
+		maxEntries="1" entryTtl="5" persistent="false" />
+
+	<http:request-config
+		name="HTTP_Anypoint_Request_configuration"
+		doc:name="HTTP Request configuration"
+		doc:id="5010f008-271e-4d2e-96b3-51057c6685e3">
+		<http:request-connection protocol="HTTPS"
+			host="anypoint.mulesoft.com" port="443" />
+	</http:request-config>
+	<configuration-properties doc:name="Configuration properties" doc:id="13dcfd1a-848e-4b18-98c3-6d453e7ced2c" file="mule-properties.yaml" />
+	<flow name="cloudhub-alerts-to-dynatraceFlow" doc:id="bcebf41c-27cf-4c8b-97ed-4ac616a6234e" >
+		<http:listener doc:name="Listener" doc:id="39925097-6659-4c60-98eb-e9ea1b1f0d60" config-ref="HTTP_Listener_config" path="/alerts"/>
+		<ee:cache doc:name="Cache" doc:id="178232d6-ce0a-437b-9a69-d8a6cb352d31" cachingStrategy-ref="Caching_Strategy_Access_Token">
+			<http:request method="POST" doc:name="Request" doc:id="942b9c70-baca-452d-8ada-851996c32288" config-ref="HTTP_Anypoint_Request_configuration" path="/accounts/login">
+				<http:body ><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+	"username": p('anypoint.username'),
+	"password": p('anypoint.password')
+}]]]></http:body>
+			</http:request>
+		</ee:cache>
+		<set-variable value="#[payload.access_token]" doc:name="Set Variable" doc:id="a7e97557-5673-4bad-b580-5b8105956b7c" variableName="access_token"/>
+		<http:request method="GET" doc:name="Anypoint - Get Alerts" doc:id="9e8f8a69-a263-49c5-aa3c-679059940e41" config-ref="HTTP_Anypoint_Request_configuration" path='#["/cloudhub/api/v2/alerts"]'>
+                <http:headers><![CDATA[#[output application/java
+---
+{
+	"X-ANYPNT-ENV-ID" : p('anypoint.env-id'),
+	"Authorization" : "Bearer " ++ vars.access_token
+}]]]></http:headers>
+            </http:request>
+		<set-variable value="#[[]]" doc:name="Set Variable" doc:id="6c9e075c-8428-478f-a16e-498f1c11f185" variableName="data"/>
+		<foreach doc:name="For Each" doc:id="40d3ee47-765c-4708-8779-4ec0ac0f8606" collection="#[payload.data]">
+			<http:request method="GET" doc:name="Anypoint - Get Alert History" doc:id="b06b4862-d08a-48fa-95ae-bec6f2052efa" config-ref="HTTP_Anypoint_Request_configuration" path='#["/cloudhub/api/v2/alerts/" ++ payload.id ++ "/history"]'>
+				<http:headers ><![CDATA[#[output application/java
+---
+{
+	"X-ANYPNT-ENV-ID" : p('anypoint.env-id'),
+	"Authorization" : "Bearer " ++ vars.access_token
+}]]]></http:headers>
+			</http:request>
+			<set-variable value="#[output application/java&#10;---&#10;vars.data ++ payload.data]" doc:name="Set Variable" doc:id="63f60482-e9dc-4ea3-9195-5a0bb1b4823b" variableName="data"/>
+		</foreach>
+		<ee:transform doc:name="Transform Message" doc:id="652b28fa-2adc-442b-b7df-1fe41acda81d" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+vars.data]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
